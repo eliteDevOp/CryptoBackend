@@ -1,89 +1,98 @@
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const { query } = require('../config/db')
-const { sendVerificationEmail, verifyCode } = require('./verificationService')
+const { sendVerificationEmail } = require('./emailService')
 
-async function startRegistration({ username, email, password }) {
-	// Check if user already exists
+async function startRegistration({ username, full_name, email, password }) {
+	// Check if user exists
 	const existingUser = await query('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username])
-
 	if (existingUser.rows.length > 0) {
 		throw new Error('Username or email already exists')
 	}
 
-	// Send verification email
-	await sendVerificationEmail(email)
+	// Hash password and save user
+	const hashedPassword = await bcrypt.hash(password, 10)
+	const newUser = await query(
+		`INSERT INTO users (username, email, full_name, password) 
+     VALUES ($1, $2, $3, $4) RETURNING id, email`,
+		[username, email, full_name, hashedPassword]
+	)
 
-	// Temporarily store user details (in production, use Redis or database)
-	const verificationToken = jwt.sign({ username, email, password }, 'ab546ba1aee6fd68f1ed19b7019f48dd', { expiresIn: '15m' })
+	// Generate and save verification code
+	const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
+	await query(
+		`INSERT INTO verification_codes (user_id, code, expires_at)
+     VALUES ((SELECT id FROM users WHERE email = $1), $2, NOW() + INTERVAL '15 minutes')`,
+		[email, verificationCode]
+	)
+
+	await sendVerificationEmail(email, verificationCode)
 
 	return {
-		message: 'Verification email sent',
-		verificationToken
+		success: true,
+		message: 'Verification code sent to email',
+		email: email // Return email instead of userId
 	}
 }
 
-async function completeRegistration(verificationToken, code) {
-	try {
-		// Verify the token
-		const decoded = jwt.verify(verificationToken, 'ab546ba1aee6fd68f1ed19b7019f48dd')
-		const { username, email, password } = decoded
+async function confirmVerification({ email, code }) {
+	// Check valid code
+	const validCode = await query(
+		`SELECT * FROM verification_codes 
+     WHERE user_id = (SELECT id FROM users WHERE email = $1) 
+     AND code = $2 AND expires_at > NOW()`,
+		[email, code]
+	)
+	if (validCode.rows.length === 0) {
+		throw new Error('Invalid or expired code')
+	}
 
-		// Verify the code
-		const isVerified = await verifyCode(email, code)
-		if (!isVerified) {
-			throw new Error('Invalid verification code')
-		}
+	// Activate user
+	await query('UPDATE users SET is_verified = TRUE WHERE email = $1', [email])
 
-		// Hash password and create user
-		const hashedPassword = await bcrypt.hash(password, 10)
-		const result = await query('INSERT INTO users (username, email, password, is_verified) VALUES ($1, $2, $3, $4) RETURNING id, username, email, is_admin', [username, email, hashedPassword, true])
+	// Delete used code
+	await query(
+		`DELETE FROM verification_codes 
+     WHERE user_id = (SELECT id FROM users WHERE email = $1) AND code = $2`,
+		[email, code]
+	)
 
-		return result.rows[0]
-	} catch (err) {
-		if (err.name === 'JsonWebTokenError') {
-			throw new Error('Invalid or expired verification token')
-		}
-		throw err
+	return {
+		success: true,
+		message: 'Account verified successfully'
 	}
 }
 
 async function authenticateUser({ email, password }) {
-	try {
-		const result = await query('SELECT id, username, email, password, is_admin, is_verified FROM users WHERE email = $1', [email])
+	const user = await query('SELECT * FROM users WHERE email = $1', [email])
+	if (user.rows.length === 0) {
+		throw new Error('Invalid credentials')
+	}
 
-		if (result.rows.length === 0) {
-			throw new Error('Invalid credentials')
-		}
+	const userData = user.rows[0]
 
-		const user = result.rows[0]
+	if (!userData.is_verified) {
+		throw new Error('Please verify your email first')
+	}
 
-		// Check if email is verified
-		if (!user.is_verified) {
-			throw new Error('Please verify your email first')
-		}
+	const isValid = await bcrypt.compare(password, userData.password)
+	if (!isValid) {
+		throw new Error('Invalid credentials')
+	}
 
-		const isValid = await bcrypt.compare(password, user.password)
-		if (!isValid) {
-			throw new Error('Invalid credentials')
-		}
+	const token = jwt.sign({ id: userData.id, isAdmin: userData.is_admin }, process.env.JWT_SECRET, { expiresIn: '24h' })
 
-		const token = jwt.sign({ id: user.id, isAdmin: user.is_admin }, "ab546ba1aee6fd68f1ed19b7019f48dd", { expiresIn: "24h" })
-
-		return {
-			id: user.id,
-			username: user.username,
-			email: user.email,
-			isAdmin: user.is_admin,
-			token
-		}
-	} catch (err) {
-		throw err
+	return {
+		id: userData.id,
+		username: userData.username,
+		email: userData.email,
+		isAdmin: userData.is_admin,
+		token
 	}
 }
 
 module.exports = {
 	startRegistration,
-	completeRegistration,
+	confirmVerification,
 	authenticateUser
 }
