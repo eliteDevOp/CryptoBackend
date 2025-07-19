@@ -1,13 +1,13 @@
-require('dotenv').config()
-const app = require('./app')
-const { priceCache } = require('./services/priceService')
-const { pool } = require('./config/db')
+require("dotenv").config()
+const app = require("./app")
+const { priceCache } = require("./services/priceService")
+const {  query } = require("./config/db")
 const cors = require("cors")
+const { initializeDatabase } = require("./scripts/initDB") // Your initialization module
 
 const PORT = 8080
-app.use(cors())
-app.use(cors());
 
+// CORS configuration (simplified from your multiple declarations)
 app.use(
 	cors({
 		origin: "*",
@@ -16,40 +16,69 @@ app.use(
 	})
 )
 
-const server = app.listen(PORT, () => {
-	console.log(`Server running on port ${PORT}`)
-})
+async function startServer() {
+	try {
+		await initializeDatabase()
+		console.log("✅ Database initialization complete")
 
-async function initializeCache() {
-	const { rows } = await pool.query(
-		`SELECT DISTINCT ON (symbol) symbol, price, timestamp 
-     FROM price_history 
-     ORDER BY symbol, timestamp DESC`
-	)
-	rows.forEach((row) =>
-		priceCache.set(row.symbol, {
-			price: row.price,
-			timestamp: row.timestamp
+		await initializeCache()
+		console.log("✅ Price cache initialized")
+
+		const server = app.listen(PORT, () => {
+			console.log(`🚀 Server running on port ${PORT}`)
 		})
-	)
+
+		setupGracefulShutdown(server)
+	} catch (err) {
+		console.error("❌ Failed to start server:", err)
+		process.exit(1)
+	}
 }
 
-process.on('SIGTERM', () => {
-	console.log('SIGTERM received. Shutting down gracefully')
-	server.close(() => {
-		pool.end(() => {
-			console.log('Database connection closed')
-			process.exit(0)
-		})
-	})
-})
+async function initializeCache() {
+	try {
+		const { rows } = await query(
+			`SELECT DISTINCT ON (symbol) symbol, price, timestamp 
+       FROM price_history 
+       ORDER BY symbol, timestamp DESC`
+		)
 
-process.on('SIGINT', () => {
-	console.log('SIGINT received. Shutting down gracefully')
-	server.close(() => {
-		pool.end(() => {
-			console.log('Database connection closed')
-			process.exit(0)
+		rows.forEach((row) => {
+			priceCache.set(row.symbol, {
+				price: row.price,
+				timestamp: row.timestamp
+			})
 		})
-	})
-})
+	} catch (err) {
+		if (err.code === "42P01") {
+			// Table doesn't exist
+			console.error("Price history table missing - did database initialization fail?")
+			throw err // Re-throw to prevent server start
+		}
+		console.error("⚠️ Error initializing cache:", err)
+		// You might choose to continue without cache in some cases
+	}
+}
+
+function setupGracefulShutdown(server) {
+	const shutdown = async (signal) => {
+		console.log(`${signal} received. Shutting down gracefully...`)
+
+		try {
+			// Close server first to stop new connections
+			await new Promise((resolve) => server.close(resolve))
+
+			console.log("✅ Server and database connections closed")
+			process.exit(0)
+		} catch (err) {
+			console.error("❌ Error during shutdown:", err)
+			process.exit(1)
+		}
+	}
+
+	process.on("SIGTERM", () => shutdown("SIGTERM"))
+	process.on("SIGINT", () => shutdown("SIGINT"))
+}
+
+// Start the application
+startServer()

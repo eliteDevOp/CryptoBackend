@@ -48,9 +48,9 @@ describe('Price API', () => {
 		})
 	})
 
-	describe('GET /api/price-history/:symbol', () => {
+	describe('GET /api/price_history/:symbol', () => {
 		it('should get price history for a symbol', async () => {
-			const response = await request(app).get('/api/price-history/BTCUSD').set('Authorization', `Bearer ${authToken}`)
+			const response = await request(app).get('/api/price_history/BTCUSD').set('Authorization', `Bearer ${authToken}`)
 
 			expect(response.statusCode).toBe(200)
 			expect(Array.isArray(response.body)).toBe(true)

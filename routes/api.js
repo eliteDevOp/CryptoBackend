@@ -7,7 +7,7 @@ const { getCurrentPrice, getAllPrices, getPriceHistory, searchCoin, getAllCoins,
 router.get("/price/:symbol", getCurrentPrice)
 router.get("/search", searchCoin)
 router.get("/prices", getAllPrices)
-router.get("/price-history/:symbol", auth, getPriceHistory)
+router.get("/price_history/:symbol", auth, getPriceHistory)
 
 // New routes
 router.get("/all-coins", getAllCoins)

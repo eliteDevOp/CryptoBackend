@@ -1,8 +1,7 @@
-const { query } = require('../config/db')
+const { query } = require("../config/db")
 
 async function initializeDatabase() {
 	try {
-		// Create users table
 		await query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -10,27 +9,26 @@ async function initializeDatabase() {
         password VARCHAR(255) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         is_admin BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `)
 
-		// Create price_history table
 		await query(`
       CREATE TABLE IF NOT EXISTS price_history (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(20) NOT NULL,
         price DECIMAL(20, 8) NOT NULL,
-        timestamp TIMESTAMP NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT valid_price CHECK (price > 0)
       );
     `)
 
-		console.log('Database initialized successfully')
+		console.log("✅ Database tables created successfully")
 	} catch (err) {
-		console.error('Error initializing database:', err)
-	} finally {
-		process.exit()
-	}
+		console.error("❌ Error initializing database:", err)
+		throw err
+	} 
 }
 
-initializeDatabase()
+module.exports = { initializeDatabase }
