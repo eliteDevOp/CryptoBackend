@@ -2,8 +2,19 @@ require('dotenv').config()
 const app = require('./app')
 const { priceCache } = require('./services/priceService')
 const { pool } = require('./config/db')
+const cors = require("cors")
 
 const PORT = 8080
+app.use(cors())
+app.use(cors());
+
+app.use(
+	cors({
+		origin: "*",
+		methods: ["GET", "POST", "PUT", "DELETE"],
+		allowedHeaders: ["Content-Type", "Authorization"]
+	})
+)
 
 const server = app.listen(PORT, () => {
 	console.log(`Server running on port ${PORT}`)
