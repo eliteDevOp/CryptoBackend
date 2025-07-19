@@ -68,7 +68,7 @@ async function authenticateUser({ email, password }) {
 			throw new Error('Invalid credentials')
 		}
 
-		const token = jwt.sign({ id: user.id, isAdmin: user.is_admin }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN })
+		const token = jwt.sign({ id: user.id, isAdmin: user.is_admin }, "ab546ba1aee6fd68f1ed19b7019f48dd", { expiresIn: "24h" })
 
 		return {
 			id: user.id,

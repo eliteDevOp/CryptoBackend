@@ -4,10 +4,10 @@ const crypto = require('crypto')
 const verificationCodes = new Map()
 
 const transporter = nodemailer.createTransport({
-	service: process.env.EMAIL_SERVICE,
+	service: "gmail",
 	auth: {
-		user: process.env.EMAIL_USERNAME,
-		pass: process.env.EMAIL_PASSWORD
+		user: "signalscrypto301@gmail.com",
+		pass: "uahr xvvn paua kktu"
 	}
 })
 

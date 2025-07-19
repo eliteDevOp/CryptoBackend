@@ -42,8 +42,8 @@ class PolygonWebSocket {
 	authenticate() {
 		this.socket.send(
 			JSON.stringify({
-				action: 'auth',
-				params: process.env.POLYGON_API_KEY
+				action: "auth",
+				params: "78hO5g90HYMrUwS0sntujCmD3hH9YzNp"
 			})
 		)
 
