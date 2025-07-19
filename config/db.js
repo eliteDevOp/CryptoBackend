@@ -2,11 +2,8 @@ const { Pool } = require('pg')
 require('dotenv').config()
 
 const pool = new Pool({
-	host: 'localhost',
-	port: 5432,
-	user: 'cryptosignals',
-	password: 'zohaib123',
-	database: 'cryptosignals'
+	connectionString: "postgresql://postgres:zLEANgxuxQqNRWBuXYsAaIpGreFYJIja@shuttle.proxy.rlwy.net:36453/railway",
+	ssl: { rejectUnauthorized: false } // may be needed for some hosts
 })
 
 pool.on('connect', () => {
@@ -24,7 +21,7 @@ module.exports = {
 			const res = await pool.query(text, params)
 			return res
 		} catch (err) {
-			console.error('Error executing query', err)
+			console.error("Error executing query", err)
 			throw err
 		}
 	},
