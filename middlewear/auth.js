@@ -9,7 +9,7 @@ async function auth(req, res, next) {
 			return res.status(401).json({ error: 'Authentication required' })
 		}
 
-		const decoded = jwt.verify(token, process.env.JWT_SECRET)
+		const decoded = jwt.verify(token, "ab546ba1aee6fd68f1ed19b7019f48dd")
 
 		const result = await query('SELECT id, username, email, is_admin FROM users WHERE id = $1', [decoded.id])
 

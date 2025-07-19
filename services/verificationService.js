@@ -18,9 +18,9 @@ async function sendVerificationEmail(email) {
 	verificationCodes.set(email, { code, expiresAt })
 
 	const mailOptions = {
-		from: process.env.EMAIL_FROM,
+		from: "signalscrypto301@gmail.com",
 		to: email,
-		subject: 'Verify your email address',
+		subject: "Verify your email address",
 		text: `Your verification code is: ${code}`,
 		html: `<p>Your verification code is: <strong>${code}</strong></p>`
 	}

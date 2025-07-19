@@ -15,7 +15,7 @@ async function startRegistration({ username, email, password }) {
 	await sendVerificationEmail(email)
 
 	// Temporarily store user details (in production, use Redis or database)
-	const verificationToken = jwt.sign({ username, email, password }, process.env.JWT_SECRET, { expiresIn: '15m' })
+	const verificationToken = jwt.sign({ username, email, password }, p'ab546ba1aee6fd68f1ed19b7019f48dd', { expiresIn: '15m' })
 
 	return {
 		message: 'Verification email sent',
@@ -26,7 +26,7 @@ async function startRegistration({ username, email, password }) {
 async function completeRegistration(verificationToken, code) {
 	try {
 		// Verify the token
-		const decoded = jwt.verify(verificationToken, process.env.JWT_SECRET)
+		const decoded = jwt.verify(verificationToken, p'ab546ba1aee6fd68f1ed19b7019f48dd')
 		const { username, email, password } = decoded
 
 		// Verify the code

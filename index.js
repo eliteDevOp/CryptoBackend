@@ -3,7 +3,7 @@ const app = require('./app')
 const { priceCache } = require('./services/priceService')
 const { pool } = require('./config/db')
 
-const PORT = process.env.PORT || 3001
+const PORT = 8080
 
 const server = app.listen(PORT, () => {
 	console.log(`Server running on port ${PORT}`)
