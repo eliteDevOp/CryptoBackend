@@ -5,34 +5,7 @@ const { sendVerificationEmail } = require('./emailService')
 
 async function startRegistration({ username, full_name, email, password }) {
 	// Check if user exists
-	const existingUser = await query('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username])
-	if (existingUser.rows.length > 0) {
-		throw new Error('Username or email already exists')
-	}
-
-	// Hash password and save user
-	const hashedPassword = await bcrypt.hash(password, 10)
-	const newUser = await query(
-		`INSERT INTO users (username, email, full_name, password) 
-     VALUES ($1, $2, $3, $4) RETURNING id, email`,
-		[username, email, full_name, hashedPassword]
-	)
-
-	// Generate and save verification code
-	const verificationCode = Math.floor(100000 + Math.random() * 900000).toString()
-	await query(
-		`INSERT INTO verification_codes (user_id, code, expires_at)
-     VALUES ((SELECT id FROM users WHERE email = $1), $2, NOW() + INTERVAL '15 minutes')`,
-		[email, verificationCode]
-	)
-
-	await sendVerificationEmail(email, verificationCode)
-
-	return {
-		success: true,
-		message: 'Verification code sent to email',
-		email: email // Return email instead of userId
-	}
+	
 }
 
 async function confirmVerification({ email, code }) {

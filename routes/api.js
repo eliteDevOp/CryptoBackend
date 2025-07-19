@@ -12,6 +12,6 @@ router.get("/price_history/:symbol", auth, getPriceHistory)
 // New routes
 router.get("/all-coins", getAllCoins)
 router.get("/top-coins", getTopPerformingCoins)
-router.post("/create-signal", auth, createSignal)
+router.post("/create-signal", createSignal)
 
 module.exports = router
