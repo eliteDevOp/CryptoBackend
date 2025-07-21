@@ -1,12 +1,13 @@
-const polygonWS = require("../websocket/polygonWS")
-const { getHistoricalPrices, searchCoins, getAllCoinData, createSignalDB } = require("../services/priceService")
+const polygonWS = require('../websocket/polygonWS')
+const { getHistoricalPrices, searchCoins, getAllCoinData, createSignalDB, getSignalsDB, getAllSignalsDB, getMonthlySignalPerformance, getSignalPerformanceStats, getRecentSignalsWithStatus, getAllSignals } = require('../services/priceService')
+const db = require('../config/db')
 
 async function getCurrentPrice(req, res) {
 	const { symbol } = req.params
 	const priceData = polygonWS.getPrice(symbol)
 
 	if (!priceData) {
-		return res.status(404).json({ error: "Symbol not found or not updated yet" })
+		return res.status(404).json({ error: 'Symbol not found or not updated yet' })
 	}
 
 	res.json({
@@ -27,7 +28,7 @@ async function getPriceHistory(req, res) {
 		const history = await getHistoricalPrices(symbol, limit)
 		res.json(history)
 	} catch (err) {
-		res.status(500).json({ error: "Failed to fetch price history" })
+		res.status(500).json({ error: 'Failed to fetch price history' })
 	}
 }
 
@@ -35,13 +36,13 @@ async function searchCoin(req, res) {
 	try {
 		const { query } = req.query
 		if (!query || query.length < 2) {
-			return res.status(400).json({ error: "Search query must be at least 2 characters" })
+			return res.status(400).json({ error: 'Search query must be at least 2 characters' })
 		}
 
 		const results = await searchCoins(query)
 		res.json(results)
 	} catch (err) {
-		res.status(500).json({ error: "Failed to search coins" })
+		res.status(500).json({ error: 'Failed to search coins' })
 	}
 }
 
@@ -59,20 +60,38 @@ async function getAllCoins(req, res) {
 
 		res.json(formattedCoins)
 	} catch (err) {
-		res.status(500).json({ error: "Failed to fetch all coins data" })
+		res.status(500).json({ error: 'Failed to fetch all coins data' })
 	}
 }
 
-async function getTopPerformingCoins(req, res) {
+async function createSignal(req, res) {
 	try {
-		const limit = parseInt(req.query.limit) || 10
-		const allCoins = await getAllCoinData()
+		const { symbol, stopLoss, target, price } = req.body
 
-		// Sort by 24h change (descending)
+		if (!symbol || isNaN(stopLoss) || isNaN(target)) {
+			return res.status(400).json({ error: 'Valid symbol, stopLoss, and target are required' })
+		}
+
+		const newSignal = await createSignalDB({
+			symbol,
+			stopLoss: parseFloat(stopLoss),
+			target: parseFloat(target),
+			price
+		})
+
+		res.status(201).json(newSignal)
+	} catch (err) {
+		res.status(500).json({ error: 'Failed to create signal', err: err.message })
+	}
+}
+
+async function getFullSignalDashboard(req, res) {
+	try {
+		const [signals, stats, monthlyPerformance, recentSignals, allCoins] = await Promise.all([getAllSignalsDB(), getSignalPerformanceStats(), getMonthlySignalPerformance(), getRecentSignalsWithStatus(10), getAllCoinData()])
+
 		const sortedCoins = [...allCoins].sort((a, b) => b.change24h - a.change24h)
 
-		// Get top coins
-		const topCoins = sortedCoins.slice(0, limit).map((coin) => ({
+		const topCoins = sortedCoins.slice(0, 10).map((coin) => ({
 			name: coin.name,
 			symbol: coin.symbol,
 			price: coin.price,
@@ -80,40 +99,70 @@ async function getTopPerformingCoins(req, res) {
 			change24h: coin.change24h
 		}))
 
-		res.json(topCoins)
+		res.json({
+			signals,
+			stats,
+			monthlyPerformance,
+			recentSignals,
+			topCoins
+		})
 	} catch (err) {
-		res.status(500).json({ error: "Failed to fetch top performing coins" })
+		res.status(500).json({
+			error: 'Failed to fetch full signal dashboard',
+			message: err.message
+		})
 	}
 }
 
-async function createSignal(req, res) {
+async function getRecentSignals(req, res) {
 	try {
-		const { symbol, stopLoss, target } = req.body
-		const userId = req.user.id // Assuming auth middleware adds user to req
+		const recentSignals = await getAllSignals()
+		res.json({
+			data: recentSignals
+		})
+	} catch (err) {
+		res.status(500).json({
+			error: 'Failed to fetch active signals',
+			message: err.message
+		})
+	}
+}
 
-		if (!symbol || isNaN(stopLoss) || isNaN(target)) {
-			return res.status(400).json({ error: "Valid symbol, stopLoss and target are required" })
+async function updateStatus(req, res) {
+	try {
+		const { id, status } = req.body
+
+		if (!id || !status) {
+			return res.status(400).json({ error: 'Missing id or status in request body' })
 		}
 
-		const newSignal = await createSignalDB({
-			userId,
-			symbol,
-			stopLoss: parseFloat(stopLoss),
-			target: parseFloat(target)
-		})
+		const result = await db.query('UPDATE signals SET status = $1 WHERE id = $2 RETURNING *', [status, id])
 
-		res.status(201).json(newSignal)
+		if (result.rowCount === 0) {
+			return res.status(404).json({ error: 'Signal not found' })
+		}
+
+		res.status(200).json({
+			message: 'Signal status updated successfully',
+			signal: result.rows[0]
+		})
 	} catch (err) {
-		res.status(500).json({ error: "Failed to create signal" })
+		console.error('Error updating signal status:', err)
+		res.status(500).json({
+			error: 'Failed to update signal status',
+			message: err.message
+		})
 	}
 }
 
 module.exports = {
+	getFullSignalDashboard,
 	getCurrentPrice,
 	getAllPrices,
+	getRecentSignals,
 	getPriceHistory,
 	searchCoin,
 	getAllCoins,
-	getTopPerformingCoins,
+	updateStatus,
 	createSignal
 }
