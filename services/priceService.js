@@ -32,11 +32,11 @@ function updateCache(symbol, price, timestamp) {
 async function searchCoins(searchTerm) {
 	try {
 		const result = await query(
-			`SELECT DISTINCT symbol 
-       FROM price_history 
-       WHERE symbol ILIKE $1
-       ORDER BY symbol
-       LIMIT 10`,
+			`SELECT DISTINCT ON (symbol) symbol, price
+   FROM price_history
+   WHERE symbol ILIKE $1
+   ORDER BY symbol, created_at DESC
+   LIMIT 10`,
 			[`%${searchTerm}%`]
 		)
 
@@ -211,7 +211,6 @@ async function getMonthlySignalPerformance() {
 	`)
 	return result.rows
 }
-
 
 async function getAllSignals() {
 	try {
