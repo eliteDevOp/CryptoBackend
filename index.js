@@ -18,9 +18,6 @@ app.use(
 
 async function startServer() {
 	try {
-		await initializeDatabase()
-		console.log("✅ Database initialization complete")
-
 		await initializeCache()
 		console.log("✅ Price cache initialized")
 
