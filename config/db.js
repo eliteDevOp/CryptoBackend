@@ -2,12 +2,13 @@ const { Pool } = require('pg')
 require('dotenv').config()
 
 const pool = new Pool({
-	host: 'shuttle.proxy.rlwy.net',
-	port: 36453,
-	user: 'postgres',
-	password: 'zLEANgxuxQqNRWBuXYsAaIpGreFYJIja',
-	database: 'railway',
-	ssl: { rejectUnauthorized: false }
+	// host: 'shuttle.proxy.rlwy.net',
+	// port: 36453,
+	// user: 'postgres',
+	// password: 'zLEANgxuxQqNRWBuXYsAaIpGreFYJIja',
+	// database: 'railway',
+	// ssl: { rejectUnauthorized: false }
+	connectionString:'postgresql://postgres:zohaib123@localhost:5432/cryptosignals'
 })
 
 

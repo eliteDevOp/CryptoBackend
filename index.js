@@ -3,8 +3,9 @@ const app = require("./app")
 const { priceCache } = require("./services/priceService")
 const {  query } = require("./config/db")
 const cors = require("cors")
+const { initializeDatabase } = require("./scripts/initDB")
 
-const PORT = 8080
+const PORT = 3000
 
 app.use(
 	cors({
@@ -16,6 +17,8 @@ app.use(
 
 async function startServer() {
 	try {
+
+		// await initializeDatabase()
 
 		await initializeCache()
 		console.log("✅ Price cache initialized")
