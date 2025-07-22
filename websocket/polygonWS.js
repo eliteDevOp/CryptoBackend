@@ -5,9 +5,9 @@ const { storePrice } = require('../services/priceService')
 class PolygonWebSocket {
 	constructor() {
 		this.activeSubscriptions = new Set()
-		this.priceCache = new Map() // Initialize price cache
+		this.priceCache = new Map() 
 		this.connected = false
-		this.reconnectInterval = 5000 // 5 seconds reconnect interval
+		this.reconnectInterval = 5000 
 	}
 
 	connect() {

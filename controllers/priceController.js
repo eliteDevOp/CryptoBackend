@@ -1,5 +1,5 @@
 const polygonWS = require('../websocket/polygonWS')
-const { getHistoricalPrices, searchCoins, getAllCoinData, createSignalDB, getSignalsDB, getAllSignalsDB, getMonthlySignalPerformance, getSignalPerformanceStats, getRecentSignalsWithStatus, getAllSignals } = require('../services/priceService')
+const { getHistoricalPrices, searchCoins, getAllCoinData, createSignalDB, getAllSignalsDB, getMonthlySignalPerformance, getSignalPerformanceStats, getRecentSignalsWithStatus, getAllSignals } = require('../services/priceService')
 const db = require('../config/db')
 
 async function getCurrentPrice(req, res) {
