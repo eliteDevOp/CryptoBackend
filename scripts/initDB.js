@@ -15,34 +15,24 @@ async function initializeDatabase() {
       );
     `)
 
-		await query(`
-  DO $$
-  BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='entry_price') THEN
-      ALTER TABLE signals ADD COLUMN entry_price NUMERIC;
-    END IF;
+	const checkAndAddColumn = async (table, column, type) => {
+		const checkQuery = `
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = $1 AND column_name = $2
+  `
+		const result = await query(checkQuery, [table, column])
+		if (result.rowCount === 0) {
+			await query(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+			console.log(`✅ Added column ${column} to ${table}`)
+		}
+	}
 
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns 
-      WHERE table_name='signals' AND column_name='price'
-    ) THEN
-      ALTER TABLE symbols ADD COLUMN price NUMERIC;
-    END IF;
+	await checkAndAddColumn('signals', 'entry_price', 'NUMERIC')
+	await checkAndAddColumn('signals', 'exit_price', 'NUMERIC')
+	await checkAndAddColumn('signals', 'status', 'VARCHAR(20)')
+	await checkAndAddColumn('signals', 'closed_at', 'TIMESTAMP')
+	await checkAndAddColumn('symbols', 'price', 'NUMERIC')
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='exit_price') THEN
-      ALTER TABLE signals ADD COLUMN exit_price NUMERIC;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='status') THEN
-      ALTER TABLE signals ADD COLUMN status VARCHAR(20);
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='closed_at') THEN
-      ALTER TABLE signals ADD COLUMN closed_at TIMESTAMP;
-    END IF;
-  END;
-  $$;
-`)
 		await query(`
       CREATE TABLE IF NOT EXISTS signals (
           id SERIAL PRIMARY KEY,
