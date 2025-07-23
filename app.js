@@ -3,7 +3,6 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 const errorHandler = require('./middlewear/errorHandler')
 const polygonWS = require('./websocket/polygonWS')
-const authRoutes = require('./routes/auth')
 const apiRoutes = require('./routes/api')
 
 const app = express()
@@ -15,7 +14,6 @@ app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({ extended: true }))
 
 // Routes
-app.use('/auth', authRoutes)
 app.use('/api', apiRoutes)
 
 // Error handler
