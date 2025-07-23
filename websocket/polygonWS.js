@@ -6,15 +6,12 @@ class PolygonWebSocket {
 	constructor() {
 		this.activeSubscriptions = new Set()
 		this.priceCache = new Map()
-		this.connected = false
 		this.reconnectInterval = 5000
+		this.connected = false
 	}
 
 	connect() {
-		this.socket = new WebSocket('wss://socket.polygon.io/crypto', {
-			perMessageDeflate: false,
-			agent: new (require('http').Agent)({ keepAlive: true })
-		});
+		this.socket = new WebSocket('wss://socket.polygon.io/crypto');
 
 		this.socket.on('open', () => {
 			console.log('Connected to Polygon.io WebSocket')

@@ -85,7 +85,7 @@ async function createSignal(req, res) {
 	}
 }
 
-async function TopCoins(req, res) {
+async function getFullSignalDashboard(req, res) {
 	try {
 		const [signals, stats, monthlyPerformance, recentSignals, allCoins] = await Promise.all([getAllSignalsDB(), getSignalPerformanceStats(), getMonthlySignalPerformance(), getRecentSignalsWithStatus(10), getAllCoinData()])
 
@@ -114,11 +114,11 @@ async function TopCoins(req, res) {
 	}
 }
 
-async function getFullSignalDashboard(req, res) {
+async function TopCoins(req, res) {
 	try {
-		const allCoins = getAllCoinData()
+		const allCoins = await getAllCoinData()
 
-		const sortedCoins = [...allCoins].sort((a, b) => b.change24h - a.change24h)
+		const sortedCoins = allCoins.sort((a, b) => b.change24h - a.change24h)
 
 		const topCoins = sortedCoins.slice(0, 10).map((coin) => ({
 			name: coin.name,

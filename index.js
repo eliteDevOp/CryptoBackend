@@ -30,8 +30,8 @@ async function startServer() {
 
 		// await initializeDatabase(
 
-		await initializeCache()
-		console.log("✅ Price cache initialized")
+		// await initializeCache()
+		// console.log("✅ Price cache initialized")
 
 		const server = app.listen(PORT, () => {
 			console.log(`🚀 Server running on port ${PORT}`)
