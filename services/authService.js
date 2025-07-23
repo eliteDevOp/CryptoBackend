@@ -17,7 +17,7 @@ async function confirmVerification({ email, code }) {
 		[email, code]
 	)
 	if (validCode.rows.length === 0) {
-		throw new Error('Invalid or expired code')
+		res.json({message:'Invalid or expired code'})
 	}
 
 	// Activate user
@@ -39,18 +39,18 @@ async function confirmVerification({ email, code }) {
 async function authenticateUser({ email, password }) {
 	const user = await query('SELECT * FROM users WHERE email = $1', [email])
 	if (user.rows.length === 0) {
-		throw new Error('Invalid credentials')
+		res.json({message:'Invalid credentials'})
 	}
 
 	const userData = user.rows[0]
 
 	if (!userData.is_verified) {
-		throw new Error('Please verify your email first')
+		res.json({message:'Please verify your email first'})
 	}
 
 	const isValid = await bcrypt.compare(password, userData.password)
 	if (!isValid) {
-		throw new Error('Invalid credentials')
+		res.json({message:'Invalid credentials'})
 	}
 
 	const token = jwt.sign({ id: userData.id, isAdmin: userData.is_admin }, process.env.JWT_SECRET, { expiresIn: '24h' })
