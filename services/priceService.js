@@ -19,12 +19,8 @@ async function getHistoricalPrices(symbol, limit = 100) {
 	}
 }
 
-const NodeCache = require('node-cache');
-const priceCache = new NodeCache({ 
-  stdTTL: 60, // 1 minute TTL
-  checkperiod: 120,
-  useClones: false
-});
+
+const priceCache = new Map()
 
 function updateCache(symbol, price, timestamp) {
 	priceCache.set(symbol, {
@@ -51,51 +47,59 @@ async function searchCoins(searchTerm) {
 		throw err
 	}
 }
-
 async function getAllCoinData() {
 	try {
-		// Get the latest price for each symbol along with 24h change data
-		  const result = await query(`
-      SELECT 
-        ph.symbol,
-        ph.price as current_price,
-        yph.price as yesterday_price,
-        vd.volume,
-        ((ph.price - yph.price) / yph.price * 100) as change_24h,
-        ph.timestamp as last_updated
-      FROM (
-        SELECT DISTINCT ON (symbol) symbol, price, timestamp
-        FROM price_history
-        ORDER BY symbol, timestamp DESC
-      ) ph
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, price
-        FROM price_history
-        WHERE timestamp < NOW() - INTERVAL '24 hours'
-        ORDER BY symbol, timestamp DESC
-      ) yph ON ph.symbol = yph.symbol
-      LEFT JOIN (
+		const result = await query(`
+      WITH latest_prices AS (
         SELECT 
-          symbol,
+          ph.symbol,
+          ph.price,
+          ph.timestamp,
+          ROW_NUMBER() OVER (PARTITION BY ph.symbol ORDER BY ph.timestamp DESC) as rn
+        FROM price_history ph
+        WHERE ph.timestamp > NOW() - INTERVAL '1 hour'
+      ),
+      yesterday_prices AS (
+        SELECT 
+          ph.symbol,
+          ph.price,
+          ROW_NUMBER() OVER (PARTITION BY ph.symbol ORDER BY ph.timestamp DESC) as rn
+        FROM price_history ph
+        WHERE ph.timestamp BETWEEN NOW() - INTERVAL '25 hours' AND NOW() - INTERVAL '24 hours'
+      ),
+      volume_data AS (
+        SELECT 
+          ph.symbol,
           COUNT(*) as volume
-        FROM price_history
-        WHERE timestamp > NOW() - INTERVAL '24 hours'
-        GROUP BY symbol
-      ) vd ON ph.symbol = vd.symbol
-      ORDER BY ph.symbol
+        FROM price_history ph
+        WHERE ph.timestamp > NOW() - INTERVAL '24 hours'
+        GROUP BY ph.symbol
+      )
+      SELECT 
+        lp.symbol,
+        lp.price as current_price,
+        yp.price as yesterday_price,
+        vd.volume,
+        ((lp.price - yp.price) / yp.price * 100) as change_24h,
+        lp.timestamp as last_updated
+      FROM latest_prices lp
+      LEFT JOIN yesterday_prices yp ON lp.symbol = yp.symbol AND yp.rn = 1
+      LEFT JOIN volume_data vd ON lp.symbol = vd.symbol
+      WHERE lp.rn = 1
+      ORDER BY lp.symbol
     `, [], 5000);
 
 		return result.rows.map((row) => ({
 			symbol: row.symbol,
-			name: row.symbol, // You might want to add a proper name mapping
+			name: row.symbol,
 			price: row.current_price,
 			volume: row.volume || 0,
 			change24h: row.change_24h || 0,
 			lastUpdated: row.last_updated
-		}))
+		}));
 	} catch (err) {
-		console.error('Error fetching all coin data:', err)
-		return []
+		console.error('Error fetching all coin data:', err);
+		return [];
 	}
 }
 
