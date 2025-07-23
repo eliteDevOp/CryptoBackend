@@ -2,19 +2,20 @@ const { Pool } = require('pg')
 require('dotenv').config()
 
 const pool = new Pool({
-	// host: 'shuttle.proxy.rlwy.net',
-	// port: 36453,
-	// user: 'postgres',
-	// password: 'zLEANgxuxQqNRWBuXYsAaIpGreFYJIja',
-	// database: 'railway',
-	// ssl: { rejectUnauthorized: false }
-	connectionString:'postgresql://postgres:zohaib123@localhost:5432/cryptosignals'
+  connectionString: 'postgresql://postgres:zohaib123@localhost:5432/cryptosignals',
+  max: 20, 
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000 
 })
 
 
+let firstConnect = false;
 
 pool.on('connect', () => {
-	console.log('Connected to PostgreSQL database')
+	if (!firstConnect) {
+		console.log('Connected to PostgreSQL database')
+		firstConnect = true
+	}
 })
 
 pool.on('error', (err) => {

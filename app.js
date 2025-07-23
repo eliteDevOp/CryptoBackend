@@ -9,6 +9,12 @@ const apiRoutes = require('./routes/api')
 const app = express()
 
 // Middleware
+app.use((req, res, next) => {
+  res.setTimeout(5000, () => {
+    res.status(503).json({ error: 'Service timeout' });
+  });
+  next();
+});
 app.use(cors())
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({ extended: true }))

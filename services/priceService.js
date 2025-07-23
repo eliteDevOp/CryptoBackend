@@ -19,7 +19,12 @@ async function getHistoricalPrices(symbol, limit = 100) {
 	}
 }
 
-const priceCache = new Map()
+const NodeCache = require('node-cache');
+const priceCache = new NodeCache({ 
+  stdTTL: 60, // 1 minute TTL
+  checkperiod: 120,
+  useClones: false
+});
 
 function updateCache(symbol, price, timestamp) {
 	priceCache.set(symbol, {
@@ -50,46 +55,35 @@ async function searchCoins(searchTerm) {
 async function getAllCoinData() {
 	try {
 		// Get the latest price for each symbol along with 24h change data
-		const result = await query(`
-      WITH latest_prices AS (
-        SELECT 
-          symbol,
-          price,
-          timestamp,
-          ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
+		  const result = await query(`
+      SELECT 
+        ph.symbol,
+        ph.price as current_price,
+        yph.price as yesterday_price,
+        vd.volume,
+        ((ph.price - yph.price) / yph.price * 100) as change_24h,
+        ph.timestamp as last_updated
+      FROM (
+        SELECT DISTINCT ON (symbol) symbol, price, timestamp
         FROM price_history
-      ),
-      yesterday_prices AS (
-        SELECT 
-          symbol,
-          price,
-          timestamp,
-          ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
+        ORDER BY symbol, timestamp DESC
+      ) ph
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, price
         FROM price_history
         WHERE timestamp < NOW() - INTERVAL '24 hours'
-      ),
-      volume_data AS (
+        ORDER BY symbol, timestamp DESC
+      ) yph ON ph.symbol = yph.symbol
+      LEFT JOIN (
         SELECT 
           symbol,
-          COUNT(*) as volume,
-          MAX(timestamp) as last_trade
+          COUNT(*) as volume
         FROM price_history
         WHERE timestamp > NOW() - INTERVAL '24 hours'
         GROUP BY symbol
-      )
-      SELECT 
-        lp.symbol,
-        lp.price as current_price,
-        yp.price as yesterday_price,
-        vd.volume,
-        ((lp.price - yp.price) / yp.price * 100) as change_24h,
-        lp.timestamp as last_updated
-      FROM latest_prices lp
-      LEFT JOIN yesterday_prices yp ON lp.symbol = yp.symbol AND yp.rn = 1
-      LEFT JOIN volume_data vd ON lp.symbol = vd.symbol
-      WHERE lp.rn = 1
-      ORDER BY lp.symbol
-    `)
+      ) vd ON ph.symbol = vd.symbol
+      ORDER BY ph.symbol
+    `, [], 5000);
 
 		return result.rows.map((row) => ({
 			symbol: row.symbol,

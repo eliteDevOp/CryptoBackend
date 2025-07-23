@@ -7,6 +7,16 @@ const { initializeDatabase } = require("./scripts/initDB")
 
 const PORT = 3000
 
+const promBundle = require("express-prom-bundle");
+const metricsMiddleware = promBundle({
+  includeMethod: true,
+  includePath: true,
+  customLabels: { project: "crypto-signals" },
+  promClient: { collectDefaultMetrics: {} }
+});
+
+app.use(metricsMiddleware);
+
 app.use(
 	cors({
 		origin: "*",
@@ -18,7 +28,7 @@ app.use(
 async function startServer() {
 	try {
 
-		// await initializeDatabase()
+		// await initializeDatabase(
 
 		await initializeCache()
 		console.log("✅ Price cache initialized")

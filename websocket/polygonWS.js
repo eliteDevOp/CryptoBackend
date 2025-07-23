@@ -5,13 +5,16 @@ const { storePrice } = require('../services/priceService')
 class PolygonWebSocket {
 	constructor() {
 		this.activeSubscriptions = new Set()
-		this.priceCache = new Map() 
+		this.priceCache = new Map()
 		this.connected = false
-		this.reconnectInterval = 5000 
+		this.reconnectInterval = 5000
 	}
 
 	connect() {
-		this.socket = new WebSocket('wss://socket.polygon.io/crypto')
+		this.socket = new WebSocket('wss://socket.polygon.io/crypto', {
+			perMessageDeflate: false,
+			agent: new (require('http').Agent)({ keepAlive: true })
+		});
 
 		this.socket.on('open', () => {
 			console.log('Connected to Polygon.io WebSocket')
