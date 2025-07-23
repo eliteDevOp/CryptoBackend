@@ -85,7 +85,7 @@ async function createSignal(req, res) {
 	}
 }
 
-async function getFullSignalDashboard(req, res) {
+async function TopCoins(req, res) {
 	try {
 		const [signals, stats, monthlyPerformance, recentSignals, allCoins] = await Promise.all([getAllSignalsDB(), getSignalPerformanceStats(), getMonthlySignalPerformance(), getRecentSignalsWithStatus(10), getAllCoinData()])
 
@@ -109,6 +109,31 @@ async function getFullSignalDashboard(req, res) {
 	} catch (err) {
 		res.status(500).json({
 			error: 'Failed to fetch full signal dashboard',
+			message: err.message
+		})
+	}
+}
+
+async function getFullSignalDashboard(req, res) {
+	try {
+		const allCoins = getAllCoinData()
+
+		const sortedCoins = [...allCoins].sort((a, b) => b.change24h - a.change24h)
+
+		const topCoins = sortedCoins.slice(0, 10).map((coin) => ({
+			name: coin.name,
+			symbol: coin.symbol,
+			price: coin.price,
+			volume: coin.volume,
+			change24h: coin.change24h
+		}))
+
+		res.json({
+			topCoins
+		})
+	} catch (err) {
+		res.status(500).json({
+			error: 'Failed to fetch top coins',
 			message: err.message
 		})
 	}
@@ -164,5 +189,6 @@ module.exports = {
 	searchCoin,
 	getAllCoins,
 	updateStatus,
-	createSignal
+	createSignal,
+	TopCoins
 }
