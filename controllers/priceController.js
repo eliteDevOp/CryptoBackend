@@ -50,13 +50,9 @@ async function getAllCoins(req, res) {
 	try {
 		const allCoins = await getAllCoinData()
 
-		const formattedCoins = allCoins.map((coin) => ({
-			name: coin.name,
-			symbol: coin.symbol,
-			price: coin.price,
-			volume: coin.volume,
-			change24h: coin.change24h
-		}))
+		const formattedCoins = allCoins.map((coin) => (
+			coin
+		))
 
 		res.json(formattedCoins)
 	} catch (err) {
