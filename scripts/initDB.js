@@ -1,64 +1,46 @@
-const { query } = require('../config/db')
+// scripts/initDB.js
+const { query, verifyConnection } = require('../config/db')
 
 async function initializeDatabase() {
-    try {
-        await query(`
+	try {
+		// Verify connection first
+		const isConnected = await verifyConnection()
+		if (!isConnected) {
+			throw new Error('Could not establish database connection')
+		}
+
+		// Create tables in a transaction
+		await query('BEGIN')
+
+		await query(`
       CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          username VARCHAR(50) UNIQUE NOT NULL,
-          full_name VARCHAR(50),
-          email VARCHAR(100) UNIQUE NOT NULL,
-          password VARCHAR(100) NOT NULL,
-          is_verified BOOLEAN DEFAULT FALSE,
-          is_admin BOOLEAN DEFAULT FALSE,
-          created_at TIMESTAMP DEFAULT NOW()
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        full_name VARCHAR(50),
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(100) NOT NULL,
+        is_verified BOOLEAN DEFAULT FALSE,
+        is_admin BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT NOW()
       );
     `)
 
-    
-        await query(`
+		await query(`
       CREATE TABLE IF NOT EXISTS signals (
-          id SERIAL PRIMARY KEY,
-          symbol VARCHAR(10) NOT NULL,
-          stop_loss NUMERIC NOT NULL,
-          target NUMERIC NOT NULL,
-          created_at TIMESTAMP DEFAULT NOW()
+        id SERIAL PRIMARY KEY,
+        symbol VARCHAR(10) NOT NULL,
+        stop_loss NUMERIC NOT NULL,
+        target NUMERIC NOT NULL,
+        price NUMERIC,
+        entry_price NUMERIC,
+        exit_price NUMERIC,
+        status VARCHAR(20),
+        closed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW()
       );
     `)
 
-        await query(`
-  DO $$
-  BEGIN
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='entry_price') THEN
-      ALTER TABLE signals ADD COLUMN entry_price NUMERIC;
-    END IF;
-
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns 
-      WHERE table_name='signals' AND column_name='price'
-    ) THEN
-      ALTER TABLE signals ADD COLUMN price NUMERIC;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='exit_price') THEN
-      ALTER TABLE signals ADD COLUMN exit_price NUMERIC;
-    END IF;
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='status') THEN
-      ALTER TABLE signals ADD COLUMN status VARCHAR(20);
-    END IF;
-
-
-
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='signals' AND column_name='closed_at') THEN
-      ALTER TABLE signals ADD COLUMN closed_at TIMESTAMP;
-    END IF;
-  END;
-  $$;
-`)
-
-
-        await query(`
+		await query(`
       CREATE TABLE IF NOT EXISTS verification_codes (
         id SERIAL PRIMARY KEY,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -67,7 +49,7 @@ async function initializeDatabase() {
       );
     `)
 
-        await query(`
+		await query(`
       CREATE TABLE IF NOT EXISTS price_history (
         id SERIAL PRIMARY KEY,
         symbol VARCHAR(20) NOT NULL,
@@ -78,11 +60,24 @@ async function initializeDatabase() {
       );
     `)
 
-        console.log('✅ Database tables created successfully')
-    } catch (err) {
-        console.error('❌ Error initializing database:', err)
-        throw err
-    }
+		await query('COMMIT')
+		console.log('✅ Database tables created successfully')
+		return true
+	} catch (err) {
+		await query('ROLLBACK')
+		console.error('❌ Error initializing database:', err.message)
+
+		// If it's a connection error, try to reconnect
+		if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET') {
+			console.log('Attempting to reconnect to database...')
+			const isReconnected = await verifyConnection()
+			if (isReconnected) {
+				return initializeDatabase() // Retry initialization
+			}
+		}
+
+		throw err
+	}
 }
 
 module.exports = { initializeDatabase }
