@@ -1,7 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser')
-const polygonWS = require('./services/polygon/PolygonWebSocket')
+const polygonWS = require('./websocket/polygonWS')
 const apiRoutes = require('./routes/api')
 
 const app = express()

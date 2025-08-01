@@ -1,8 +1,6 @@
-const polygonWS = require('../services/polygon/PolygonWebSocket')
+const polygonWS = require('../websocket/polygonWS')
 const { getHistoricalPrices, searchCoins, getAllCoinData, createSignalDB, getAllSignalsDB, getMonthlySignalPerformance, getSignalPerformanceStats, getRecentSignalsWithStatus, getAllSignals } = require('../services/priceService')
 const db = require('../config/db')
-const { IconService, ICON_SOURCES } = require('../services/polygon/iconService');
-const iconService = new IconService(ICON_SOURCES.COINGECKO);
 
 async function getCurrentPrice(req, res) {
 	const { symbol } = req.params
@@ -48,109 +46,18 @@ async function searchCoin(req, res) {
 	}
 }
 
-
 async function getAllCoins(req, res) {
 	try {
-		const allCoins = await getAllCoinData();
+		const allCoins = await getAllCoinData()
 
-		// Format coins to match CoinRanking structure as closely as possible
-		const formattedCoins = allCoins.map((coin) => ({
-			uuid: coin.uuid,
-			symbol: coin.symbol,
-			name: coin.name,
-			color: getColorForSymbol(coin.symbol), // Custom function
-			iconUrl: coin.iconUrl || iconService.getIconUrl(coin.symbol),
-			marketCap: coin.marketCap ? String(coin.marketCap) : null,
-			price: coin.price ? String(coin.price) : null,
-			listedAt: getListedTimestamp(coin.symbol), // Custom function
-			tier: 1,
-			change: coin.change ? String(coin.change) : "0.00",
-			rank: getRankForSymbol(coin.symbol), // Would need implementation
-			sparkline: coin.sparkline ? coin.sparkline.map(String) : [],
-			lowVolume: false, // Polygon doesn't provide this
-			coinrankingUrl: `https://yourdomain.com/coin/${coin.symbol}`,
-			'24hVolume': coin.volume ? String(coin.volume) : "0",
-			btcPrice: "1", // Would need BTC conversion
-			contractAddresses: [],
-			isWrappedTrustless: false,
-			wrappedTo: null,
-			lastUpdated: coin.lastUpdated.toISOString()
-		}));
+		const formattedCoins = allCoins.map((coin) => (
+			coin
+		))
 
-		// Add stats (mock some values since Polygon doesn't provide these)
-		const response = {
-			status: "success",
-			data: {
-				stats: {
-					total: formattedCoins.length,
-					totalCoins: formattedCoins.length,
-					totalMarkets: 0, // Not available from Polygon
-					totalExchanges: 0, // Not available from Polygon
-					totalMarketCap: calculateTotalMarketCap(formattedCoins), // Would need implementation
-					total24hVolume: calculateTotal24hVolume(formattedCoins) // Would need implementation
-				},
-				coins: formattedCoins
-			}
-		};
-
-		res.json(response);
+		res.json(formattedCoins)
 	} catch (err) {
-		console.error('Error in getAllCoins:', err);
-		res.status(500).json({
-			status: "error",
-			message: "Failed to fetch all coins data",
-			error:err.message
-		});
+		res.status(500).json({ error: 'Failed to fetch all coins data' })
 	}
-}
-
-// Helper functions (implement these based on your needs)
-function getColorForSymbol(symbol) {
-	// Map of colors for common coins
-	const colorMap = {
-		BTC: '#f7931A',
-		ETH: '#627EEA',
-		BNB: '#F3BA2F',
-		SOL: '#00FFA3',
-		XRP: '#27A2DB'
-	};
-	return colorMap[symbol] || '#000000';
-}
-
-function getListedTimestamp(symbol) {
-	// Map of listing dates for common coins
-	const listedAtMap = {
-		BTC: 1282089600, // July 2010
-		ETH: 1438992000, // August 2015
-		BNB: 1493596800, // May 2017
-		SOL: 1596672000, // August 2020
-		XRP: 1380758400  // October 2013
-	};
-	return listedAtMap[symbol] || Math.floor(Date.now() / 1000);
-}
-
-function calculateTotalMarketCap(coins) {
-	return coins.reduce((sum, coin) => {
-		return sum + (parseFloat(coin.marketCap) || 0);
-	}, 0).toString();
-}
-
-function calculateTotal24hVolume(coins) {
-	return coins.reduce((sum, coin) => {
-		return sum + (parseFloat(coin['24hVolume']) || 0);
-	}, 0).toString();
-}
-
-function getRankForSymbol(symbol) {
-	// This would need actual ranking logic
-	const rankMap = {
-		BTC: 1,
-		ETH: 2,
-		BNB: 3,
-		SOL: 4,
-		XRP: 5
-	};
-	return rankMap[symbol] || 999;
 }
 
 async function createSignal(req, res) {
