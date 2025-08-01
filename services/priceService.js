@@ -1,5 +1,6 @@
 const db = require('../config/db')
 const { query, pool } = require('../config/db')
+const { symbolMappings, getLogoUrl } = require('./logoService')
 
 async function storePrice({ symbol, price, timestamp }) {
 	try {
@@ -18,7 +19,6 @@ async function getHistoricalPrices(symbol, limit = 100) {
 		return []
 	}
 }
-
 
 const priceCache = new Map()
 
@@ -49,7 +49,8 @@ async function searchCoins(searchTerm) {
 }
 async function getAllCoinData() {
 	try {
-		const result = await query(`
+		const result = await query(
+			`
       WITH latest_prices AS (
         SELECT 
           ph.symbol,
@@ -70,7 +71,9 @@ async function getAllCoinData() {
       volume_data AS (
         SELECT 
           ph.symbol,
-          COUNT(*) as volume
+          COUNT(*) as volume,
+          MAX(ph.price) as high_24h,
+          MIN(ph.price) as low_24h
         FROM price_history ph
         WHERE ph.timestamp > NOW() - INTERVAL '24 hours'
         GROUP BY ph.symbol
@@ -79,30 +82,77 @@ async function getAllCoinData() {
         lp.symbol,
         lp.price as current_price,
         yp.price as yesterday_price,
-        vd.volume,
-        ((lp.price - yp.price) / yp.price * 100) as change_24h,
+        vd.volume as "24hVolume",
+        vd.high_24h,
+        vd.low_24h,
+        ((lp.price - yp.price) / yp.price * 100) as change,
         lp.timestamp as last_updated
       FROM latest_prices lp
       LEFT JOIN yesterday_prices yp ON lp.symbol = yp.symbol AND yp.rn = 1
       LEFT JOIN volume_data vd ON lp.symbol = vd.symbol
       WHERE lp.rn = 1
       ORDER BY lp.symbol
-    `, [], 5000);
+    `,
+			[],
+			5000
+		)
+
+		// Add mock/sparkline data (you'll need to implement this separately)
+		const sparklineData = await getSparklineData()
 
 		return result.rows.map((row) => ({
+			uuid: `polygon-${row.symbol.toLowerCase()}`, // Mock UUID
 			symbol: row.symbol,
-			name: row.symbol,
-			price: row.current_price,
-			volume: row.volume || 0,
-			change24h: row.change_24h || 0,
+			name: symbolMappings[row.symbol]?.name || row.symbol,
+			iconUrl: getLogoUrl(row.symbol),
+			color: '#000000', // Default color
+			marketCap: '0', // Polygon doesn't provide market cap
+			price: row.current_price.toString(),
+			listedAt: Math.floor(Date.now() / 1000), // Current timestamp
+			tier: 1, // Default tier
+			change: row.change?.toString() || '0',
+			rank: 0, // You'd need to implement ranking
+			sparkline: sparklineData[row.symbol] || Array(7).fill('0'), // Mock sparkline
+			lowVolume: false, // You'd need to determine this
+			coinrankingUrl: `https://coinranking.com/coin/polygon-${row.symbol.toLowerCase()}+${row.symbol.toLowerCase()}`,
+			'24hVolume': row['24hVolume']?.toString() || '0',
+			btcPrice: '0', // You'd need BTC pairing
+			contractAddresses: [],
+			isWrappedTrustless: false,
+			wrappedTo: null,
+			high_24h: row.high_24h?.toString() || row.current_price.toString(),
+			low_24h: row.low_24h?.toString() || row.current_price.toString(),
 			lastUpdated: row.last_updated
-		}));
+		}))
 	} catch (err) {
-		console.error('Error fetching all coin data:', err);
-		return [];
+		console.error('Error fetching all coin data:', err)
+		return []
 	}
 }
 
+// Add this new function to priceService.js
+async function getSparklineData() {
+	try {
+		// This is a simplified version - you'd need to implement proper sparkline calculation
+		const result = await query(`
+      SELECT 
+        symbol,
+        ARRAY_AGG(price ORDER BY timestamp DESC LIMIT 7) as sparkline
+      FROM price_history
+      WHERE timestamp > NOW() - INTERVAL '24 hours'
+      GROUP BY symbol
+    `)
+
+		const sparklines = {}
+		result.rows.forEach((row) => {
+			sparklines[row.symbol] = row.sparkline.map((p) => p.toString())
+		})
+		return sparklines
+	} catch (err) {
+		console.error('Error fetching sparkline data:', err)
+		return {}
+	}
+}
 async function createSignalDB({ symbol, stopLoss, target, price }) {
 	const result = await db.query('INSERT INTO signals (symbol, stop_loss, target, price) VALUES ($1, $2, $3, $4) RETURNING id', [symbol, stopLoss, target, price])
 
@@ -256,6 +306,7 @@ module.exports = {
 	getAllCoinData,
 	getAllSignalsDB,
 	createSignalDB,
+	getSparklineData,
 	getMonthlySignalPerformance,
 	getSignalPerformanceStats,
 	getRecentSignalsWithStatus,
