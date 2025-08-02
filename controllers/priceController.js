@@ -46,52 +46,17 @@ async function searchCoin(req, res) {
 	}
 }
 
-async function getMarketStats(req, res) {
-	try {
-		const allCoins = await getAllCoinData()
-
-		// Calculate some mock stats since Polygon doesn't provide these
-		const totalMarketCap = allCoins.reduce((sum, coin) => sum + parseFloat(coin.marketCap || '0'), 0)
-		const total24hVolume = allCoins.reduce((sum, coin) => sum + parseFloat(coin['24hVolume'] || '0'), 0)
-
-		res.json({
-			status: 'success',
-			data: {
-				stats: {
-					total: allCoins.length,
-					totalCoins: allCoins.length,
-					totalMarkets: 100, // Mock value
-					totalExchanges: 50, // Mock value
-					totalMarketCap: totalMarketCap.toString(),
-					total24hVolume: total24hVolume.toString()
-				},
-				coins: allCoins
-			}
-		})
-	} catch (err) {
-		res.status(500).json({ error: 'Failed to fetch market stats' })
-	}
-}
-
-// Update getAllCoins to match CoinRanking format
 async function getAllCoins(req, res) {
 	try {
 		const allCoins = await getAllCoinData()
 
-		res.json({
-			status: 'success',
-			data: {
-				coins: allCoins,
-				stats: {
-					total: allCoins.length
-				}
-			}
-		})
+		const formattedCoins = allCoins.map((coin) => (
+			coin
+		))
+
+		res.json(formattedCoins)
 	} catch (err) {
-		res.status(500).json({
-			status: 'error',
-			message: 'Failed to fetch all coins data'
-		})
+		res.status(500).json({ error: 'Failed to fetch all coins data' })
 	}
 }
 
@@ -218,7 +183,6 @@ module.exports = {
 	getRecentSignals,
 	getPriceHistory,
 	searchCoin,
-	getMarketStats,
 	getAllCoins,
 	updateStatus,
 	createSignal,
