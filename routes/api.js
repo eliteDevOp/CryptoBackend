@@ -1,16 +1,7 @@
 const express = require('express')
 const router = express.Router()
-const { getCurrentPrice, getAllPrices, getPriceHistory, searchCoin, getAllCoins, createSignal, getFullSignalDashboard, updateStatus, getRecentSignals, TopCoins } = require('../controllers/priceController')
+const { getMarketStats } = require('../controllers/priceController')
 
-router.get('/price/:symbol', getCurrentPrice)
-router.get('/search', searchCoin)
-router.get('/prices', getAllPrices)
-
-router.get('/all-coins', getAllCoins)
-router.post('/create-signal', createSignal)
-router.get('/signal-dashboard', getFullSignalDashboard)
-router.get('/top-coins', TopCoins)
-router.get('/recent-signals', getRecentSignals)
-router.post('/update', updateStatus)
+router.get('/all-coins', getMarketStats)
 
 module.exports = router
