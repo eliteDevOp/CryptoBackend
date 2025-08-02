@@ -1,5 +1,7 @@
 const db = require('../config/db')
 const { query, pool } = require('../config/db')
+const polygonWS = require('../websocket/polygonWS')
+const { symbolMappings, getCoinIcon } = require('./logoService')
 
 async function storePrice({ symbol, price, timestamp }) {
 	try {
@@ -7,6 +9,27 @@ async function storePrice({ symbol, price, timestamp }) {
 	} catch (err) {
 		console.error('Error storing price:', err)
 	}
+}
+
+function generateColorFromSymbol(symbol) {
+	const hash = Array.from(symbol).reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0)
+	return `hsl(${Math.abs(hash % 360)}, 70%, 50%)`
+}
+
+function calculateMarketCap(row) {
+	if (row.market_cap) return row.market_cap.toString()
+	if (row.circulating_supply && row.current_price) {
+		return (row.circulating_supply * row.current_price).toString()
+	}
+	return null
+}
+
+function calculateTier(row) {
+	const marketCap = parseFloat(row.market_cap) || (row.circulating_supply && row.current_price ? row.circulating_supply * row.current_price : 0)
+
+	if (marketCap > 1e10) return 1
+	if (marketCap > 1e9) return 2
+	return 3
 }
 
 async function getHistoricalPrices(symbol, limit = 100) {
@@ -19,37 +42,36 @@ async function getHistoricalPrices(symbol, limit = 100) {
 	}
 }
 
-
-const priceCache = new Map()
-
-function updateCache(symbol, price, timestamp) {
-	priceCache.set(symbol, {
-		price,
-		timestamp,
-		lastUpdated: Date.now()
-	})
+async function getSparklineData(symbol, days = 7) {
+	try {
+		const history = await getHistoricalPrices(symbol, days)
+		return history.map((h) => h.price.toString())
+	} catch (error) {
+		console.error(`Error fetching sparkline for ${symbol}:`, error.message)
+		return Array(days).fill('0')
+	}
 }
 
-async function searchCoins(searchTerm) {
-	try {
-		const result = await query(
-			`SELECT DISTINCT ON (symbol) symbol, price
-   FROM price_history
-   WHERE symbol ILIKE $1
-   ORDER BY symbol, created_at DESC
-   LIMIT 10`,
-			[`%${searchTerm}%`]
-		)
+function isLowVolume(volume, marketCap) {
+	if (!volume || !marketCap) return false
+	const ratio = parseFloat(volume) / parseFloat(marketCap)
+	return ratio < 0.01
+}
 
-		return result.rows
-	} catch (err) {
-		console.error('Search error:', err)
-		throw err
+function checkIfWrappedTrustless(symbol) {
+	return symbol.startsWith('W') || symbol.startsWith('w') || symbolMappings[symbol]?.isWrapped || false
+}
+
+function getWrappedTo(symbol) {
+	if (symbol.startsWith('W') || symbol.startsWith('w')) {
+		return symbol.slice(1)
 	}
+	return symbolMappings[symbol]?.wrappedTo || null
 }
 async function getAllCoinData() {
 	try {
-		const result = await query(`
+		const result = await query(
+			`
       WITH latest_prices AS (
         SELECT 
           ph.symbol,
@@ -70,7 +92,9 @@ async function getAllCoinData() {
       volume_data AS (
         SELECT 
           ph.symbol,
-          COUNT(*) as volume
+          COUNT(*) as volume,
+          MAX(ph.price) as high_24h,
+          MIN(ph.price) as low_24h
         FROM price_history ph
         WHERE ph.timestamp > NOW() - INTERVAL '24 hours'
         GROUP BY ph.symbol
@@ -79,15 +103,20 @@ async function getAllCoinData() {
         lp.symbol,
         lp.price as current_price,
         yp.price as yesterday_price,
-        vd.volume,
-        ((lp.price - yp.price) / yp.price * 100) as change_24h,
+        vd.volume as "24hVolume",
+        vd.high_24h,
+        vd.low_24h,
+        ((lp.price - yp.price) / yp.price * 100) as change,
         lp.timestamp as last_updated
       FROM latest_prices lp
       LEFT JOIN yesterday_prices yp ON lp.symbol = yp.symbol AND yp.rn = 1
       LEFT JOIN volume_data vd ON lp.symbol = vd.symbol
       WHERE lp.rn = 1
       ORDER BY lp.symbol
-    `, [], 5000);
+    `,
+			[],
+			5000
+		)
 
 		return await Promise.all(
 			result.rows.map(async (row) => {
@@ -121,166 +150,35 @@ async function getAllCoinData() {
 			})
 		)
 	} catch (err) {
-		console.error('Error fetching all coin data:', err);
-		return [];
-	}
-}
-
-async function createSignalDB({ symbol, stopLoss, target, price }) {
-	const result = await db.query('INSERT INTO signals (symbol, stop_loss, target, price) VALUES ($1, $2, $3, $4) RETURNING id', [symbol, stopLoss, target, price])
-
-	return {
-		id: result.rows[0].id,
-		symbol,
-		stopLoss,
-		target,
-		price
-	}
-}
-
-async function getAllSignalsDB() {
-	const result = await db.query('SELECT * FROM signals')
-	return result.rows
-}
-
-async function getSignalPerformanceStats() {
-	const result = await query(`
-		WITH stats AS (
-			SELECT
-				COUNT(*) FILTER (WHERE status IS NOT NULL) AS total_closed,
-				COUNT(*) FILTER (WHERE status = 'hit_target') AS successful,
-				COUNT(*) FILTER (WHERE status = 'hit_stop') AS failed,
-				SUM(
-					CASE 
-						WHEN exit_price IS NOT NULL AND entry_price IS NOT NULL 
-						THEN exit_price - entry_price 
-						ELSE 0 
-					END
-				) AS total_profit
-			FROM signals
-		)
-		SELECT 
-			total_closed,
-			successful,
-			failed,
-			total_profit,
-			ROUND(CASE WHEN total_closed > 0 THEN (successful::decimal / total_closed) * 100 ELSE 0 END, 2) AS success_percentage,
-			ROUND(CASE WHEN total_closed > 0 THEN (failed::decimal / total_closed) * 100 ELSE 0 END, 2) AS fail_percentage
-		FROM stats;
-	`)
-	return result.rows[0]
-}
-
-async function getRecentSignalsWithStatus(limit = 10) {
-	const result = await query(
-		`
-    WITH latest_price AS (
-      SELECT DISTINCT ON (symbol) symbol, price, timestamp
-      FROM price_history
-      ORDER BY symbol, timestamp DESC
-    ),
-    yesterday_price AS (
-      SELECT DISTINCT ON (symbol) symbol, price AS price_24h
-      FROM price_history
-      WHERE timestamp < NOW() - INTERVAL '24 hours'
-      ORDER BY symbol, timestamp DESC
-    )
-    SELECT 
-      s.id,
-      s.symbol,
-      s.status,
-      lp.price AS current_price,
-      yp.price_24h,
-      ROUND(
-        CASE 
-          WHEN yp.price_24h IS NULL THEN 0
-          ELSE ((lp.price - yp.price_24h) / yp.price_24h) * 100
-        END, 
-        2
-      ) AS change_24h,
-      s.created_at
-    FROM signals s
-    LEFT JOIN latest_price lp ON s.symbol = lp.symbol
-    LEFT JOIN yesterday_price yp ON s.symbol = yp.symbol
-    ORDER BY s.created_at DESC
-    LIMIT $1
-    `,
-		[limit]
-	)
-
-	return result.rows.map((row) => ({
-		symbol: row.symbol,
-		change24h: row.change_24h,
-		status: row.status || 'active',
-		price: row.current_price,
-		created_at: row.created_at
-	}))
-}
-
-async function getMonthlySignalPerformance() {
-	const result = await query(`
-		SELECT 
-			TO_CHAR(created_at, 'YYYY-MM') AS month,
-			COUNT(*) AS total_signals,
-			SUM(
-				CASE WHEN exit_price IS NOT NULL AND entry_price IS NOT NULL
-				THEN exit_price - entry_price ELSE 0 END
-			) AS total_profit
-		FROM signals
-		GROUP BY 1
-		ORDER BY 1 DESC
-	`)
-	return result.rows
-}
-
-async function getAllSignals() {
-	try {
-		const result = await query(`
-      SELECT 
-        s.*,
-        ph.price AS current_price
-      FROM signals s
-      LEFT JOIN (
-        SELECT DISTINCT ON (symbol) symbol, price
-        FROM price_history
-        ORDER BY symbol, timestamp DESC
-      ) ph ON s.symbol = ph.symbol
-      ORDER BY s.created_at DESC
-    `)
-
-		return result.rows.map((signal) => ({
-			id: signal.id,
-			symbol: signal.symbol,
-			stopLoss: signal.stop_loss,
-			target: signal.target,
-			entryPrice: signal.price,
-			currentPrice: signal.current_price,
-			status: signal.status || 'active',
-			exitPrice: signal.exit_price,
-			createdAt: signal.created_at,
-			updatedAt: signal.updated_at,
-			// Calculate progress towards target
-			progressToTarget: signal.current_price ? ((signal.current_price - signal.price) / (signal.target - signal.price)) * 100 : 0,
-			// Calculate progress towards stop loss
-			progressToStop: signal.current_price ? ((signal.current_price - signal.price) / (signal.stop_loss - signal.price)) * 100 : 0
-		}))
-	} catch (err) {
-		console.error('Error fetching all signals:', err)
+		console.error('Error fetching all coin data:', err)
 		return []
 	}
+}
+function formatPrice(price) {
+	if (!price) return '0'
+	return parseFloat(price)
+		.toFixed(8)
+		.replace(/\.?0+$/, '')
+}
+
+function formatPercentage(change) {
+	if (!change) return '0'
+	return parseFloat(change).toFixed(2)
+}
+
+function formatVolume(volume) {
+	if (!volume) return '0'
+	if (volume > 1000000) return `${(volume / 1000000).toFixed(2)}M`
+	if (volume > 1000) return `${(volume / 1000).toFixed(2)}K`
+	return volume.toString()
+}
+
+function generateCoinrankingUrl(symbol) {
+	const slug = symbolMappings[symbol]?.slug || symbol.toLowerCase()
+	return `https://coinranking.com/coin/${slug}-${symbol.toLowerCase()}`
 }
 
 module.exports = {
 	storePrice,
-	getHistoricalPrices,
-	searchCoins,
-	priceCache,
-	updateCache,
-	getAllCoinData,
-	getAllSignalsDB,
-	createSignalDB,
-	getMonthlySignalPerformance,
-	getSignalPerformanceStats,
-	getRecentSignalsWithStatus,
-	getAllSignals
+	getAllCoinData
 }

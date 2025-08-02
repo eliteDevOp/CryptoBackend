@@ -11,7 +11,7 @@ class PolygonWebSocket {
 	}
 
 	connect() {
-		this.socket = new WebSocket('wss://socket.polygon.io/crypto');
+		this.socket = new WebSocket('wss://socket.polygon.io/crypto')
 
 		this.socket.on('open', () => {
 			console.log('Connected to Polygon.io WebSocket')
@@ -42,8 +42,8 @@ class PolygonWebSocket {
 	authenticate() {
 		this.socket.send(
 			JSON.stringify({
-				action: "auth",
-				params: "78hO5g90HYMrUwS0sntujCmD3hH9YzNp"
+				action: 'auth',
+				params: '78hO5g90HYMrUwS0sntujCmD3hH9YzNp'
 			})
 		)
 
@@ -103,7 +103,14 @@ class PolygonWebSocket {
 	}
 
 	getPrice(symbol) {
-		return this.priceCache.get(symbol)
+		const data = this.priceCache.get(symbol)
+		if (!data) return null
+
+		return {
+			price: data.price,
+			timestamp: data.timestamp,
+			lastUpdated: new Date(data.lastUpdated)
+		}
 	}
 
 	getAllPrices() {
@@ -115,4 +122,5 @@ class PolygonWebSocket {
 	}
 }
 
-module.exports = new PolygonWebSocket()
+const polygonWS = new PolygonWebSocket()
+module.exports = polygonWS
