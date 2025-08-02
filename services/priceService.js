@@ -134,6 +134,7 @@ async function getAllCoinData() {
 					listedAt: coinData?.launchDate || currentTimestamp,
 					tier: calculateTier(row),
 					change: formatPercentage(row.change),
+					iconUrl: baseSymbol,
 					sparkline: (await getSparklineData(baseSymbol)) || generatePlaceholderSparkline(),
 					lowVolume: isLowVolume(row.volume_24h, row.market_cap),
 					coinrankingUrl: generateCoinrankingUrl(baseSymbol),

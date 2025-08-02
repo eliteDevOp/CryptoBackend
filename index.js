@@ -8,7 +8,6 @@ const { initializeDatabase } = require('./scripts/initDB')
 const PORT = 3000
 
 const promBundle = require('express-prom-bundle')
-const websocketService = require('./services/websocketService')
 const metricsMiddleware = promBundle({
 	includeMethod: true,
 	includePath: true,
@@ -35,7 +34,6 @@ async function startServer() {
 
 		const server = app.listen(PORT, () => {
 			console.log(`🚀 Server running on port ${PORT}`)
-			websocketService.initialize(server)
 		})
 
 		setupGracefulShutdown(server)

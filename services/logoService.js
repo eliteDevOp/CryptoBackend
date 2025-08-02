@@ -1,6 +1,6 @@
 const fetch = require('node-fetch')
 
-const API_KEY = 'YOUR_API_KEY_HERE'
+const API_KEY = 'coinranking7657b550f97e1d2a4017f3ff1eac1e52f8887b34c7194de9'
 
 async function getCoinIcon(fullSymbol) {
 	const baseSymbol = fullSymbol.split('-')[0].toUpperCase()
