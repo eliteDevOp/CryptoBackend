@@ -1,7 +1,7 @@
-const db = require('../config/db')
-const { query, pool } = require('../config/db')
-const polygonWS = require('../websocket/polygonWS')
+const { query } = require('../config/db')
 const { symbolMappings } = require('./logoService')
+const NodeCache = require('node-cache')
+const coinDataCache = new NodeCache({ stdTTL: 60, checkperiod: 120 })
 
 async function storePrice({ symbol, price, timestamp }) {
 	try {
@@ -69,56 +69,46 @@ function getWrappedTo(symbol) {
 	return symbolMappings[symbol]?.wrappedTo || null
 }
 async function getAllCoinData() {
+	const cacheKey = 'allCoinData'
+	const cachedData = coinDataCache.get(cacheKey)
+	if (cachedData) return cachedData
 	try {
 		const result = await query(
-			`
-      WITH latest_prices AS (
-        SELECT 
-          ph.symbol,
-          ph.price,
-          ph.timestamp,
-          ROW_NUMBER() OVER (PARTITION BY ph.symbol ORDER BY ph.timestamp DESC) as rn
-        FROM price_history ph
-        WHERE ph.timestamp > NOW() - INTERVAL '1 hour'
-      ),
-      yesterday_prices AS (
-        SELECT 
-          ph.symbol,
-          ph.price,
-          ROW_NUMBER() OVER (PARTITION BY ph.symbol ORDER BY ph.timestamp DESC) as rn
-        FROM price_history ph
-        WHERE ph.timestamp BETWEEN NOW() - INTERVAL '25 hours' AND NOW() - INTERVAL '24 hours'
-      ),
-      volume_data AS (
-        SELECT 
-          ph.symbol,
-          COUNT(*) as volume,
-          MAX(ph.price) as high_24h,
-          MIN(ph.price) as low_24h
-        FROM price_history ph
-        WHERE ph.timestamp > NOW() - INTERVAL '24 hours'
-        GROUP BY ph.symbol
-      )
-      SELECT 
-        lp.symbol,
-        lp.price as current_price,
+			`SELECT 
+        ph.symbol,
+        ph.price as current_price,
         yp.price as yesterday_price,
         vd.volume as "24hVolume",
         vd.high_24h,
         vd.low_24h,
-        ((lp.price - yp.price) / yp.price * 100) as change,
-        lp.timestamp as last_updated
-      FROM latest_prices lp
-      LEFT JOIN yesterday_prices yp ON lp.symbol = yp.symbol AND yp.rn = 1
-      LEFT JOIN volume_data vd ON lp.symbol = vd.symbol
-      WHERE lp.rn = 1
-      ORDER BY lp.symbol
-    `,
-			[],
-			5000
+        ((ph.price - yp.price) / yp.price * 100) as change,
+        ph.timestamp as last_updated
+      FROM (
+        SELECT DISTINCT ON (symbol) symbol, price, timestamp
+        FROM price_history
+        WHERE timestamp > NOW() - INTERVAL '1 hour'
+        ORDER BY symbol, timestamp DESC
+      ) ph
+      LEFT JOIN (
+        SELECT DISTINCT ON (symbol) symbol, price
+        FROM price_history
+        WHERE timestamp BETWEEN NOW() - INTERVAL '25 hours' AND NOW() - INTERVAL '24 hours'
+        ORDER BY symbol, timestamp DESC
+      ) yp ON ph.symbol = yp.symbol
+      LEFT JOIN (
+        SELECT 
+          symbol,
+          COUNT(*) as volume,
+          MAX(price) as high_24h,
+          MIN(price) as low_24h
+        FROM price_history
+        WHERE timestamp > NOW() - INTERVAL '24 hours'
+        GROUP BY symbol
+      ) vd ON ph.symbol = vd.symbol
+      ORDER BY ph.symbol`
 		)
 
-		return await Promise.all(
+		const data = await Promise.all(
 			result.rows.map(async (row) => {
 				const baseSymbol = row.symbol?.includes('-') ? row.symbol.split('-')[0] : row.symbol
 				const coinData = symbolMappings[baseSymbol] || {}
@@ -135,7 +125,7 @@ async function getAllCoinData() {
 					tier: calculateTier(row),
 					change: formatPercentage(row.change),
 
-					sparkline:[],
+					sparkline: [],
 					lowVolume: isLowVolume(row.volume_24h, row.market_cap),
 					coinrankingUrl: generateCoinrankingUrl(baseSymbol),
 					'24hVolume': formatVolume(row.volume_24h),
@@ -149,6 +139,8 @@ async function getAllCoinData() {
 				}
 			})
 		)
+		coinDataCache.set(cacheKey, data)
+		return data
 	} catch (err) {
 		console.error('Error fetching all coin data:', err)
 		return []

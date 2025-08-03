@@ -7,6 +7,7 @@ const cors = require('cors')
 const PORT = 3000
 
 const promBundle = require('express-prom-bundle')
+const { initializeDatabase } = require('./scripts/initDB')
 const metricsMiddleware = promBundle({
 	includeMethod: true,
 	includePath: true,
@@ -26,6 +27,7 @@ app.use(
 
 async function startServer() {
 	try {
+		await initializeDatabase()
 		const server = app.listen(PORT, () => {
 			console.log(`🚀 Server running on port ${PORT}`)
 		})
