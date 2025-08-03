@@ -3,7 +3,6 @@ const app = require('./app')
 const { priceCache } = require('./services/priceService')
 const { query } = require('./config/db')
 const cors = require('cors')
-const { initializeDatabase } = require('./scripts/initDB')
 
 const PORT = 3000
 
@@ -27,11 +26,6 @@ app.use(
 
 async function startServer() {
 	try {
-		// await initializeDatabase(
-
-		// await initializeCache()
-		// console.log("✅ Price cache initialized")
-
 		const server = app.listen(PORT, () => {
 			console.log(`🚀 Server running on port ${PORT}`)
 		})
@@ -40,31 +34,6 @@ async function startServer() {
 	} catch (err) {
 		console.error('❌ Failed to start server:', err)
 		process.exit(1)
-	}
-}
-
-async function initializeCache() {
-	try {
-		const { rows } = await query(
-			`SELECT DISTINCT ON (symbol) symbol, price, timestamp 
-       FROM price_history 
-       ORDER BY symbol, timestamp DESC`
-		)
-
-		rows.forEach((row) => {
-			priceCache.set(row.symbol, {
-				price: row.price,
-				timestamp: row.timestamp
-			})
-		})
-	} catch (err) {
-		if (err.code === '42P01') {
-			// Table doesn't exist
-			console.error('Price history table missing - did database initialization fail?')
-			throw err // Re-throw to prevent server start
-		}
-		console.error('⚠️ Error initializing cache:', err)
-		// You might choose to continue without cache in some cases
 	}
 }
 

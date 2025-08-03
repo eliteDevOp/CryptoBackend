@@ -1,7 +1,7 @@
 const db = require('../config/db')
 const { query, pool } = require('../config/db')
 const polygonWS = require('../websocket/polygonWS')
-const { symbolMappings, getCoinIcon } = require('./logoService')
+const { symbolMappings } = require('./logoService')
 
 async function storePrice({ symbol, price, timestamp }) {
 	try {
@@ -127,15 +127,15 @@ async function getAllCoinData() {
 					uuid: `polygon-${baseSymbol.toLowerCase()}`,
 					symbol: row.symbol,
 					name: coinData.name || baseSymbol,
-					iconUrl: baseSymbol,
+					iconUrl: null,
 					color: coinData.color || generateColorFromSymbol(baseSymbol),
 					marketCap: calculateMarketCap(row),
 					price: formatPrice(row.current_price),
 					listedAt: coinData?.launchDate || currentTimestamp,
 					tier: calculateTier(row),
 					change: formatPercentage(row.change),
-					iconUrl: baseSymbol,
-					sparkline: (await getSparklineData(baseSymbol)) || generatePlaceholderSparkline(),
+
+					sparkline:[],
 					lowVolume: isLowVolume(row.volume_24h, row.market_cap),
 					coinrankingUrl: generateCoinrankingUrl(baseSymbol),
 					'24hVolume': formatVolume(row.volume_24h),
