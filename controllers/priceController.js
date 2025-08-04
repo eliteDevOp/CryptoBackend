@@ -1,4 +1,4 @@
-const { getAllCoinData } = require('../services/priceService')
+const { getAllCoinData, getCoinData } = require('../services/priceService')
 
 async function getMarketStats(req, res) {
 	try {
@@ -25,6 +25,26 @@ async function getMarketStats(req, res) {
 	}
 }
 
+async function getCoinPrice(req, res) {
+	try {
+		const { symbol } = req.query
+		if (!symbol) {
+			return res.status(400).json({ error: 'Symbol parameter is required' })
+		}
+
+		const coinData = await getCoinData(symbol.toUpperCase())
+		if (!coinData) {
+			return res.status(404).json({ error: 'Coin not found or no data available' })
+		}
+
+		res.json(coinData)
+	} catch (err) {
+		console.error('Error in getCoinPrice:', err)
+		res.status(500).json({ error: 'Failed to fetch coin data' })
+	}
+}
+
 module.exports = {
-	getMarketStats
+	getMarketStats,
+	getCoinPrice
 }

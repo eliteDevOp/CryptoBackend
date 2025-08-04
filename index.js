@@ -27,7 +27,6 @@ app.use(
 
 async function startServer() {
 	try {
-		await initializeDatabase()
 		const server = app.listen(PORT, () => {
 			console.log(`🚀 Server running on port ${PORT}`)
 		})

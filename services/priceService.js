@@ -124,7 +124,6 @@ async function getAllCoinData() {
 					listedAt: coinData?.launchDate || currentTimestamp,
 					tier: calculateTier(row),
 					change: formatPercentage(row.change),
-
 					sparkline: [],
 					lowVolume: isLowVolume(row.volume_24h, row.market_cap),
 					coinrankingUrl: generateCoinrankingUrl(baseSymbol),
@@ -146,6 +145,7 @@ async function getAllCoinData() {
 		return []
 	}
 }
+
 function formatPrice(price) {
 	if (!price) return '0'
 	return parseFloat(price)
@@ -170,7 +170,31 @@ function generateCoinrankingUrl(symbol) {
 	return `https://coinranking.com/coin/${slug}-${symbol.toLowerCase()}`
 }
 
+async function getCoinData(symbol) {
+	try {
+		const result = await query(
+			`SELECT symbol, price
+     FROM price_history
+     WHERE symbol = $1
+     ORDER BY timestamp DESC
+     LIMIT 1`,
+			[symbol]
+		)
+		if (result.rows.length === 0) {
+			return null
+		}
+
+		const row = result.rows[0]
+		console.log('Fetched coin data:', row)
+		return { price: formatPrice(row.price), symbol: row.symbol }
+	} catch (err) {
+		console.error('Error fetching coin data:', err)
+		return null
+	}
+}
+
 module.exports = {
 	storePrice,
-	getAllCoinData
+	getAllCoinData,
+	getCoinData
 }

@@ -43,7 +43,7 @@ class PolygonWebSocket {
 		this.socket.send(
 			JSON.stringify({
 				action: 'auth',
-				params: '78hO5g90HYMrUwS0sntujCmD3hH9YzNp'
+				params: 'wvoG6BsdwGxbmrpSuxFaruaqp4yzB3sY'
 			})
 		)
 
