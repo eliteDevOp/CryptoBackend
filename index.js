@@ -4,10 +4,10 @@ const { priceCache } = require('./services/priceService')
 const { query } = require('./config/db')
 const cors = require('cors')
 
-const PORT = 3000
+const PORT = 3001
 
 const promBundle = require('express-prom-bundle')
-const { initializeDatabase } = require('./scripts/initDB')
+
 const metricsMiddleware = promBundle({
 	includeMethod: true,
 	includePath: true,
